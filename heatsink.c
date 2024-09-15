@@ -391,9 +391,8 @@ void oneDimension(int my_rank, int p, int tag, MPI_Status status){
         fprintf(stderr, "\tArea = %.1f cm^2\n", CPU_surface * 10000);
     }
 
-    int h;  // Nombre de tranches à calculer pour les p-1 premiers processus.
-    int coupeProfondeur; // Nombre de tranches à calculer pour le dernier processus.
-    // Si (o, p) = (30, 4) alors P1:8, P2:8, P3:8, P4:6.
+    int h;  //Number of slices to calculate for the first p-1 processes
+    int coupeProfondeur; // Number of slices to calculate for the last process
     if (o%p == 0) {
         h = o/p;
         coupeProfondeur = h;
@@ -408,7 +407,7 @@ void oneDimension(int my_rank, int p, int tag, MPI_Status status){
     double *T;
     double *R;
     if (p == 1) {
-        // one processus
+        // one process
         profondeurTotal = h;
         profondeurNext = 0;
         profondeurPrev = 0;
@@ -462,20 +461,20 @@ void oneDimension(int my_rank, int p, int tag, MPI_Status status){
     }
 
 
-    // INITIALISATION VARIABLE
+    // variable initialisation
     for (int u = 0; u < profondeurTotal * m * n; u++){
         R[u] = T[u] = watercooling_T + 273.15;
     }
     double debut;
     if (my_rank == 0){
-        /* Declenchement chrono */
+        /* Start of the timer */
         debut = my_gettimeofday();
     }
     /* simulating time steps */
     while (convergence == 0) {
         /* Update all cells. xy planes are processed, for increasing values of z. */
 
-        // On effectue les communications nécessaires.
+        // Communication
         if (profondeurNext == 1) {
             MPI_Sendrecv(&T[(profondeurTotal-2)*n*m], n*m, MPI_DOUBLE,
                          my_rank+1, tag, &T[(profondeurTotal-1)*n*m], n*m,
@@ -607,14 +606,13 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
         fprintf(stderr, "\tArea = %.1f cm^2\n", CPU_surface * 10000);
     }
 
-    int profondeur;  // Nombre de tranches en Z à calculer pour les p-1 premiers processus.
-    int hauteur;  // Nombre de tranches en Y à calculer pour les p-1 premiers processus.
-    int profondeur_last;  // Nombre de tranches en Z à calculer pour le dernier processus.
-    int hauteur_last;  // Nombre de tranches en Z à calculer pour le dernier processus.
+    int profondeur;  // Number of Z slices to calculate for the first p-1 processes
+    int hauteur;  // Number of Y slices to calculate for the first p-1 processes
+    int profondeur_last;  // Number of Y slices to calculate for the last process
+    int hauteur_last;  // Number of Z slices to calculate for the last process
 
 
     // depth = sup (o/z).
-    // Profondeur du dernier processus vaut profondeur ou bien (o mod profondeur).
     if (o%z == 0) {
         profondeur = o/z;
         profondeur_last = o/z;
@@ -623,8 +621,6 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
         profondeur_last = o % profondeur;
     }
 
-    // Hauteur = Partie entiere sup (m/y).
-    // Hauteur du dernier processus vaut hauteur ou bien (m mod hauteur).
     if (m%y == 0) {
         hauteur = m/y;
         hauteur_last = m/y;
@@ -633,20 +629,20 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
         hauteur_last = m % hauteur;
     }
 
-    int profondeurTotal;  // Nombre de profondeur pour chaque processus.
-    int hauteurTotal;  // Nombre de hauteur pour chaque processus.
-    int profondeurNext;  // Nombre de voisin à la profondeur prochaine.
-    int profondeurPrev;  // Nombre de voisin à la profondeur précédente.
+    int profondeurTotal;  // Number of depths for each process
+    int hauteurTotal;  // Number of heights for each process
+    int profondeurNext;  // Number of neighbors at the next depth
+    int profondeurPrev;  // Number of neighbors at the previous depth
     int hauteurNext;
     int hauteurPrev;
 
-    // ALLOCATION DE MEMOIRE
+    // memory allocation
     double *T;
     double *R;
 
     for (int k = 0; k < z; k++){
         if (p == 1){
-            // Un seul processus;
+            // one process
             profondeurTotal = profondeur;
             hauteurTotal = hauteur;
             profondeurNext = 0;
@@ -657,13 +653,12 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
         }
         for (int j = 0; j < y; j++){
 
-            // On associe chaque processus à une partie du domaine.
+            // Each process is associated with a part of the domain
             if (my_rank != k*y +j){
                 continue;
             }
 
-            // On distingue les differents cas pour allouer T et R.
-            // Cas aux double bords: +1 dans les deux axes.
+
             if ((k == 0 && j == 0) || (k == z-1 && j == y-1) || (k == 0 && j == y-1) || (k == z-1 && j == 0)) {
                 if (k == 0 && j == 0) {
                     profondeurTotal = profondeur + 1;
@@ -696,7 +691,6 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
                 }
             }
 
-            // Cas aux bords en Z et pas aux bords en Y: +1 dans Z et +2 dans Y.
             else if ((k == 0 || k == z-1) && (j != 0) && (j != y-1)) {
                 if (k == 0) {
                     profondeurTotal = profondeur + 1;
@@ -715,7 +709,6 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
                 }
             }
 
-            // Cas non aux bords en Z et aux bord en Y: +2 dans Z et +1 dans Y.
             else if ((k != 0) && (k != z-1)  && (j == 0 || j == y-1)) {
                 if (j == 0){
                     profondeurTotal = profondeur + 2;
@@ -735,7 +728,6 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
                 }
             }
 
-            // Cas aucun bords, ni en Z ni en Y: +2 dans Z et +2 dans Y.
             else {
                 profondeurTotal = profondeur + 2;
                 hauteurTotal = hauteur + 2;
@@ -758,7 +750,7 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
     }
 
 
-    // INITIALISATION VARIABLE
+    // variable initialisation
     for (int u = 0; u < profondeurTotal * hauteurTotal * n; u++){
         R[u] = T[u] = watercooling_T + 273.15;
     }
@@ -769,9 +761,8 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
     int n_steps = 0;
     int convergence = 0;
 
-    // Calcul convergence
+    // Calculation of convergence
 
-    // fprintf(stderr, "RANK = %d: profondeurNext = %d, profondeurPrev = %d, hauteurNext = %d, hauteurPrev = %d \n", my_rank, profondeurNext, profondeurPrev, hauteurNext, hauteurPrev);
     double* buffer = malloc(sizeof(*buffer)* profondeurTotal * n);
     double* buffer2 = malloc(sizeof(*buffer2)* profondeurTotal * n);
 
@@ -802,25 +793,25 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
     int hauteurRead = end_y - start_y;
     double debut;
     if (my_rank == 0){
-        /* Declenchement chrono */
+        /* start of the timer*/
         debut = my_gettimeofday();
     }
 
     while (convergence == 0) {
 
-        if (profondeurPrev == 1){  // Si j'ai un voisin à la profondeur précédente.
+        if (profondeurPrev == 1){ 
         MPI_Sendrecv(&T[1 * hauteurTotal * n + start_y * n + 0], n*hauteurRead, MPI_DOUBLE,
                      my_rank-y, tag, &T[0 * hauteurTotal * n + start_y * n + 0], n*hauteurRead,
                      MPI_DOUBLE, my_rank-y, tag, MPI_COMM_WORLD, &status);
         }
 
-        if (profondeurNext == 1){  // Si j'ai un voisin à la profondeur suivante
+        if (profondeurNext == 1){
         MPI_Sendrecv(&T[(profondeurTotal-2) * hauteurTotal * n + start_y * n + 0], n*hauteurRead, MPI_DOUBLE,
                      my_rank+y, tag, &T[(profondeurTotal-1) * hauteurTotal * n + start_y * n + 0], n*hauteurRead,
                      MPI_DOUBLE, my_rank+y, tag, MPI_COMM_WORLD, &status);
         }
 
-        if (hauteurPrev == 1){  // Si j'ai un voisin à la hauteur précédente.
+        if (hauteurPrev == 1){ 
 
             int incr =0;
             for(int k = startRead_z; k < endRead_z;k++){
@@ -842,7 +833,7 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
             }
         }
 
-        if (hauteurNext == 1){  // Si j'ai un voisin à la hauteur suivante.
+        if (hauteurNext == 1){ 
 
             int incr =0;
             for(int k = startRead_z; k < endRead_z;k++){
@@ -865,19 +856,15 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
         }
 
         for (int k = 0; k < profondeurTotal; k++) {  // z
-            // Coord du tableau T et R de la forme profondeurTotal * hauteurTotal * n
             int v = k * n * hauteurTotal;
 
-            int K;  // La profondeur par rapport au domaine d'origine.
+            int K;
             if (profondeurPrev == 1) {
-               // Il existe Y, Z qui determinent la position du sous-domaine considéré.
-               // On a: my_rank = Z*y + Y
-               // Alors: K = Z + k ou K = Z + k-1
+
                 K = (my_rank/y)*profondeur + k-1;
             } else {
                 K = k;
             }
-            // Verifie qu'on ne calcule pas la profondeur du voisin
             if (K == 0 || (profondeurPrev == 1 && k == 0) || (profondeurNext == 1 && k == profondeurTotal - 1)) {
 
                 // we do not modify the z = 0 plane: it is maintained at constant temperature via water-cooling
@@ -886,7 +873,7 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
 
             for (int j = 0; j < hauteurTotal; j++) {   // y
 
-                int J; // La hauteur par rapport au domaine d'origine.
+                int J;
                 if (hauteurPrev == 1) {
                     J = (my_rank%y)*hauteur + j-1;
 
@@ -950,19 +937,11 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
     free(buffer);
     free(buffer2);
 
-    // Reunir résultat
     double *result;
     if (my_rank == 0){
         result = malloc(n*m*o*sizeof(*result));
     }
 
-
-    // Envoyer le gros bloc qui n'est pas bien organise. Le root devra lui même reorganiser.
-    // Ou envoyer plusieurs blocs.
-    // La premiere option demande bcp de travail au root.
-    // La deuxieme effectue plus de comm mais ca reste mieux je pense.
-
-    // Envoi de plusieurs blocs au root.
     if (my_rank != 0) {
         int start_z, end_z;
         if (profondeurPrev == 1)
@@ -1002,18 +981,14 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
     }
 
     else {
-        // Le root reçoit les blocs et effectue une copie de T dans result.
         for (int k = 0; k < z; k++){
             for (int j = 0; j < y; j++){
-                // k,j donne le sous-domaine. Pour chaque sous-domaine il ya plusieurs envois.
-                // Donc le rang qui se charge de ce sous-domaine est: rank = k*y + j;
                 int rank = k*y + j;
-                int P = 0;  // profondeurTotal de l'autre processus.
-                int H = 0;  // hauteurTotal de l'autre processus.
-                int S = 0;  // Start_Z de l'autre processus.
-                int E = 0; // End_Z de l'autre processus.
+                int P = 0; 
+                int H = 0; 
+                int S = 0; 
+                int E = 0; 
                 if (k != 0 || j != 0){
-                    //fprintf(stderr, "myrank = %d, P = %d, j'attends: ,%d \n", my_rank, P, rank);
                     MPI_Recv(&P, 1, MPI_INT, rank, 999, MPI_COMM_WORLD, &status);
                     MPI_Recv(&H, 1, MPI_INT, rank, 998, MPI_COMM_WORLD, &status);
                     MPI_Recv(&S, 1, MPI_INT, rank, 997, MPI_COMM_WORLD, &status);
@@ -1030,7 +1005,6 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
                         MPI_Recv(&result[prof*m*n + haut*n], H*n, MPI_DOUBLE, rank, i, MPI_COMM_WORLD, &status);
                     }
                 } else {
-                    // On copie dans result le tableau T.
                     int hauteur = hauteurTotal - hauteurNext;
                     int profondeur = profondeurTotal - profondeurNext;
                     for (int k = 0; k < profondeur; k++){
@@ -1050,7 +1024,7 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
 
     }
 
-    // ECRITURE
+    // write
     if (my_rank == 0){
         #ifdef DUMP_STEADY_STATE
             printf("###### STEADY STATE; t = %.1f\n", t);
@@ -1071,10 +1045,10 @@ void twoDimension(int y, int z, int my_rank, int p, int tag, MPI_Status status){
 
 // 3D implementation
 void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status status){
-    /* Partitionne l'espace 3D en fonction des 2 axes: Y et Z.
-    int y: Nombre de partitions selon l'axe Y
-    int z: Nombre de partitions selon l'axe Z
-    int x: Nombre de partitions selon l'axe X
+    /* Partitions the 3D space based on the Y and Z axes.
+    int y: Number of partitions along the Y axis
+    int z: Number of partitions along the Z axis
+    int x: Number of partitions along the X axis
     */
     CPU_surface = CPU_contact_surface();
     double V = L * l * E;
@@ -1094,16 +1068,13 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
         fprintf(stderr, "\tPower = %.0fW\n", CPU_TDP);
         fprintf(stderr, "\tArea = %.1f cm^2\n", CPU_surface * 10000);
     }
-    int longueur;   // Nombre de tranches en X à calculer pour les p-1 premiers processus.
-    int profondeur;  // Nombre de tranches en Z à calculer pour les p-1 premiers processus.
-    int hauteur;  // Nombre de tranches en Y à calculer pour les p-1 premiers processus.
-    int longueur_last;  // Nombre de tranches en X à calculer pour le dernier processus.
-    int profondeur_last;  // Nombre de tranches en Z à calculer pour le dernier processus.
-    int hauteur_last;  // Nombre de tranches en Z à calculer pour le dernier processus.
+    int longueur; 
+    int profondeur;  
+    int hauteur; 
+    int longueur_last; 
+    int profondeur_last;  
+    int hauteur_last; 
 
-
-    // Profondeur = Partie entiere sup (o/z).
-    // Profondeur du dernier processus vaut profondeur ou bien (o mod profondeur).
     if (o%z == 0) {
         profondeur = o/z;
         profondeur_last = o/z;
@@ -1112,8 +1083,7 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
         profondeur_last = o % profondeur;
     }
 
-    // Hauteur = Partie entiere sup (m/y).
-    // Hauteur du dernier processus vaut hauteur ou bien (m mod hauteur).
+
     if (m%y == 0) {
         hauteur = m/y;
         hauteur_last = m/y;
@@ -1122,8 +1092,6 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
         hauteur_last = m % hauteur;
     }
 
-    // Longueur = Partie entiere sup (n/x).
-    // Longueur du dernier processus vaut longueur ou bien (n mod longueur).
     if(n%x == 0){
         longueur = n/x;
         longueur_last = n/x;
@@ -1132,23 +1100,23 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
         longueur_last = n % longueur;
     }
 
-    int longueurTotal;  // Nombre de longueur pour chaque processus.
-    int profondeurTotal;  // Nombre de profondeur pour chaque processus.
-    int hauteurTotal;  // Nombre de hauteur pour chaque processus.
-    int longueurNext;   // Nombre de voisin à la longueur prochaine.
-    int longueurPrev;   // Nombre de voisin à la longueur précédente.
-    int profondeurNext;  // Nombre de voisin à la profondeur prochaine.
-    int profondeurPrev;  // Nombre de voisin à la profondeur précédente.
+    int longueurTotal; 
+    int profondeurTotal;  
+    int hauteurTotal;
+    int longueurNext;  
+    int longueurPrev;   
+    int profondeurNext;  
+    int profondeurPrev;  
     int hauteurNext;
     int hauteurPrev;
 
-    // ALLOCATION DE MEMOIRE
+    // memory allocation
     double *T;
     double *R;
 
     for (int k = 0; k < z; k++){
         if (p == 1){
-            // Un seul processus;
+            // one process
             profondeurTotal = profondeur;
             hauteurTotal = hauteur;
             longueurTotal = longueur;
@@ -1162,14 +1130,10 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
         }
         for (int j = 0; j < y; j++){
             for(int i = 0; i < x; i++){
-                // On associe chaque processus à une partie du domaine.
                 if (my_rank != k*y*x +j*x + i){
                     continue;
                 }
 
-
-                // On distingue les differents cas pour allouer T et R.
-                // Cas angle hauteur 0
                 if((k == 0 && i == 0 && j == 0) || (k == 0 && i == x-1 && j == 0) || (k == z-1 && i == 0 && j == 0) || (k == z-1 && i == x-1 && j == 0) ){
                     if(k == 0 && i == 0 && j == 0){
                         profondeurTotal = profondeur + 1;
@@ -1217,7 +1181,7 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
                         longueurPrev = 1;
 
                     }
-                // Cas angle hauteurTotal - 1
+
                 } else if ((k == 0 && i == 0 && j == y-1) || (k == 0 && i == x-1 && j == y-1) || (k == z-1 && i == 0 && j == y-1) || (k == z-1 && i == x-1 && j == y-1) ) {
                     if (k == 0 && i == 0 && j == y-1) {
                         profondeurTotal = profondeur + 1;
@@ -1266,7 +1230,6 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
 
                     }
 
-                // Cas angles hauteur != 0 ou y-1
                 } else if ((k == 0 || k == z-1) && (j != 0) && (j != y-1) && (i == 0 || i == x-1)) {
                     if( k == 0 ){
                         if ( i == 0 ){
@@ -1315,7 +1278,6 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
                             longueurPrev = 1;
                         }
                     }
-                // Cas face profondeur 0 ou z-1
                 } else if ((k == 0 || k == z-1) && (i != 0 || i != x-1)) {
                     if (k == 0) {
                         if (j == 0) {
@@ -1386,7 +1348,6 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
 
                         }
                     }
-                // Cas face longueur 0 ou x-1
                 } else if ((i == 0 || i == x-1) && (k !=0 || k != z-1)) {
                     if(i == 0) {
                         if(j == 0) {
@@ -1479,7 +1440,6 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
                         longueurNext = 1;
                         longueurPrev = 1;
                     }
-                // Bloc qui n'est pas sur une surface
                 }
                 else {
                     profondeurTotal = profondeur + 2;
@@ -1505,7 +1465,6 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
         exit(1);
     }
 
-    // INITIALISATION VARIABLE
     for (int u = 0; u < profondeurTotal * hauteurTotal * longueurTotal; u++){
         R[u] = T[u] = watercooling_T + 273.15;
     }
@@ -1553,30 +1512,29 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
     }
     int longueurRead = end_x - start_x;
 
-    // Calcul convergence
 
     double* bufferHauteur = malloc(sizeof(*bufferHauteur)* profondeurTotal * longueurTotal);
     double* bufferLongueur = malloc(sizeof(*bufferLongueur)* profondeurTotal * hauteurTotal);
     double debut;
     if(my_rank == 0){
-        /* Declenchement chrono */
+        /* Start of the timer */
         debut = my_gettimeofday();
     }
     while (convergence == 0) {
 
-        if (profondeurPrev == 1){  // Si j'ai un voisin à la profondeur précédente.
+        if (profondeurPrev == 1){ 
             MPI_Sendrecv(&T[1 * hauteurTotal * longueurTotal + start_y * longueurTotal + 0], longueurTotal*hauteurRead, MPI_DOUBLE,
                      my_rank-(y*x), tag, &T[0 * hauteurTotal * longueurTotal + start_y * longueurTotal + 0], longueurTotal*hauteurRead,
                      MPI_DOUBLE, my_rank-(y*x), tag, MPI_COMM_WORLD, &status);
         }
 
-        if (profondeurNext == 1){  // Si j'ai un voisin à la profondeur suivante
+        if (profondeurNext == 1){ 
             MPI_Sendrecv(&T[(profondeurTotal-2) * hauteurTotal * longueurTotal + start_y * longueurTotal + 0], longueurTotal*hauteurRead, MPI_DOUBLE,
                      my_rank+(y*x), tag, &T[(profondeurTotal-1) * hauteurTotal * longueurTotal + start_y * longueurTotal + 0], longueurTotal*hauteurRead,
                      MPI_DOUBLE, my_rank+(y*x), tag, MPI_COMM_WORLD, &status);
         }
 
-        if (hauteurPrev == 1){  // Si j'ai un voisin à la hauteur précédente.
+        if (hauteurPrev == 1){
 
             int incr =0;
             for(int k = startRead_z; k < endRead_z;k++){
@@ -1598,7 +1556,7 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
             }
         }
 
-        if (hauteurNext == 1){  // Si j'ai un voisin à la hauteur suivante.
+        if (hauteurNext == 1){
 
             int incr =0;
             for(int k = startRead_z; k < endRead_z;k++){
@@ -1620,7 +1578,7 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
             }
         }
 
-        if(longueurPrev == 1){  // Si j'ai un voisin à la longueur précédente.
+        if(longueurPrev == 1){ 
             int incr =0;
             for(int k = startRead_z; k < endRead_z;k++){
                 for(int j = start_y; j < end_y;j++){
@@ -1641,7 +1599,7 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
             }
         }
 
-        if(longueurNext == 1){  // Si j'ai un voisin à la longueur suivante.
+        if(longueurNext == 1){
             int incr =0;
             for(int k = startRead_z; k < endRead_z;k++){
                 for(int j = start_y; j < end_y;j++){
@@ -1662,19 +1620,18 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
             }
         }
 
-        // fprintf(stderr, "t = %f\n", t);
         for (int k = 0; k < profondeurTotal; k++) {  // z
 
-            // Coord du tableau T et R de la forme profondeurTotal * hauteurTotal * longueurTotal
+
             int v = k * longueurTotal * hauteurTotal;
 
-            int K;  // La profondeur par rapport au domaine d'origine.
+            int K; 
             if (profondeurPrev == 1) {
                 K = (my_rank/(y*x))*profondeur + k-1;
             } else {
                 K = k;
             }
-            // Verifie qu'on ne calcule pas la profondeur du voisin
+
             if (K == 0 || (profondeurPrev == 1 && k == 0) || (profondeurNext == 1 && k == profondeurTotal - 1)) {
 
                 // we do not modify the z = 0 plane: it is maintained at constant temperature via water-cooling
@@ -1682,7 +1639,7 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
             }
             for (int j = 0; j < hauteurTotal; j++) {   // y
 
-                int J; // La hauteur par rapport au domaine d'origine.
+                int J;
                 if (hauteurPrev == 1) {
                     J = ((my_rank%(x*y))/x)*hauteur + j-1;
 
@@ -1761,11 +1718,10 @@ void threeDimension(int x, int y, int z, int my_rank, int p, int tag, MPI_Status
     free(bufferHauteur);
     free(bufferLongueur);
 
-    // Reunir résultat
+
     double *result;
     if (my_rank == 0){
         result = malloc(n*m*o*sizeof(*result));
-        // Allocation memoire
     }
     int *tab = malloc(sizeof(*tab)*7);
     int *infoTab = malloc(sizeof(*infoTab)*3);
